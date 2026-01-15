@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Tetris</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #222;
+            font-family: Arial, sans-serif;
+        }
+        #gameContainer {
+            position: relative;
+        }
+        canvas {
+            border: 2px solid #fff;
+            background: #000;
+            display: block;
+        }
+        #info {
+            color: #fff;
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="400" height="500"></canvas>
+        <div id="info">
+            <p>Score: <span id="score">0</span></p>
+            <p>Use Arrow Keys to move | Z or Space to rotate</p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const COLS = 20;
+        const ROWS = 25;
+        const BLOCK_SIZE = 20;
+        
+        const PIECES = [
+            { shape: [[1,1,1,1]], color: '#00f0f0' }, // I - Cyan
+            { shape: [[1,1],[1,1]], color: '#f0f000' }, // O - Yellow
+            { shape: [[0,1,0],[1,1,1]], color: '#a000f0' }, // T - Purple
+            { shape: [[1,0,0],[1,1,1]], color: '#0000f0' }, // J - Blue
+            { shape: [[0,0,1],[1,1,1]], color: '#f0a000' }, // L - Orange
+            { shape: [[0,1,1],[1,1,0]], color: '#00f000' }, // S - Green
+            { shape: [[1,1,0],[0,1,1]], color: '#f00000' }  // Z - Red
+        ];
+        
+        let board = Array(ROWS).fill(null).map(() => Array(COLS).fill(0));
+        let score = 0;
+        let currentPiece = null;
+        let nextPiece = null;
+        
+        function getRandomPiece() {
+            return JSON.parse(JSON.stringify(PIECES[Math.floor(Math.random() * PIECES.length)]));
+        }
+        
+        function initGame() {
+            currentPiece = getRandomPiece();
+            currentPiece.x = Math.floor(COLS / 2) - 1;
+            currentPiece.y = 0;
+        }
+        
+        function drawBlock(x, y, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+        }
+        
+        function drawBoard() {
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    if (board[y][x]) {
+                        drawBlock(x, y, board[y][x]);
+                    }
+                }
+            }
+        }
+        
+
+
+        
+        function drawPiece() {
+            if (!currentPiece) return;
+            for (let y = 0; y < currentPiece.shape.length; y++) {
+                for (let x = 0; x < currentPiece.shape[y].length; x++) {
+                    if (currentPiece.shape[y][x]) {
+                        drawBlock(currentPiece.x + x, currentPiece.y + y, currentPiece.color);
+                    }
+                }
+            }
+        }
+        
+        function isValidMove(piece, x, y) {
+            for (let py = 0; py < piece.shape.length; py++) {
+                for (let px = 0; px < piece.shape[py].length; px++) {
+                    if (piece.shape[py][px]) {
+                        const nx = x + px;
+                        const ny = y + py;
+                        if (nx < 0 || nx >= COLS || ny >= ROWS) return false;
+                        if (ny >= 0 && board[ny][nx]) return false;
+                    }
+                }
+            }
+            return true;
+        }
+        
+        function movePiece(dx, dy) {
+            if (isValidMove(currentPiece, currentPiece.x + dx, currentPiece.y + dy)) {
+                currentPiece.x += dx;
+                currentPiece.y += dy;
+                return true;
+            }
+            return false;
+        }
+        
+        function rotatePiece() {
+            const rotated = currentPiece.shape[0].map((_, i) =>
+                currentPiece.shape.map(row => row[i]).reverse()
+            );
+            const original = currentPiece.shape;
+            currentPiece.shape = rotated;
+            if (!isValidMove(currentPiece, currentPiece.x, currentPiece.y)) {
+                currentPiece.shape = original;
+            }
+        }
+
+        function changeShape() {
+            const newPiece = getRandomPiece();
+            newPiece.x = currentPiece.x;
+            newPiece.y = currentPiece.y;
+            if (isValidMove(newPiece, newPiece.x, newPiece.y)) {
+                currentPiece.shape = newPiece.shape;
+                currentPiece.color = newPiece.color;
+            }
+        }
+        
+        function lockPiece() {
+            for (let y = 0; y < currentPiece.shape.length; y++) {
+                for (let x = 0; x < currentPiece.shape[y].length; x++) {
+                    if (currentPiece.shape[y][x]) {
+                        const ny = currentPiece.y + y;
+                        const nx = currentPiece.x + x;
+                        if (ny >= 0) board[ny][nx] = currentPiece.color;
+                    }
+                }
+            }
+            clearLines();
+            currentPiece = getRandomPiece();
+            currentPiece.x = Math.floor(COLS / 2) - 1;
+            currentPiece.y = 0;
+        }
+      
+        function clearLines() {
+            for (let y = ROWS - 1; y >= 0; y--) {
+                if (board[y].every(cell => cell)) {
+                    board.splice(y, 1);
+                    board.unshift(Array(COLS).fill(0));
+                    score += 10;
+                    document.getElementById('score').textContent = score;
+                }
+            }
+        }
+        
+        function update() {
+            if (!movePiece(0, 1)) {
+                lockPiece();
+            }
+        }
+        
+        function render() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            drawBoard();
+            drawPiece();
+        }
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') movePiece(-1, 0);
+            if (e.key === 'ArrowRight') movePiece(1, 0);
+            if (e.key === 'ArrowDown') movePiece(0, 1);
+            if (e.key === 'z' || e.key === 'Z') rotatePiece();
+            if (e.code === 'Space') rotatePiece();
+        });
+        
+        initGame();
+        setInterval(update, 500);
+        setInterval(render, 30);
+    </script>
+</body>
+</html>
